@@ -1,0 +1,13 @@
+I2PII_MiniProject_3/
+
+main
+109062131_project3
+player*
+!player*.cpp
+!player*.cu
+
+gamelog.txt
+state
+action
+
+*.log

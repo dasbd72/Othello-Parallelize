@@ -1,1 +1,5 @@
-# Othello_Parallelize
+# Othello Parallelize
+
+## Files
+
+* `main.cpp` : game controller
