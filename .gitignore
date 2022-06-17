@@ -1,8 +1,10 @@
-I2PII_MiniProject_3/
+testcase/
 
 main
 109062131_project3
 player*
+!players/*
+!players
 !player*.cpp
 !player*.cu
 

@@ -229,10 +229,10 @@ public:
 };
 
 const std::string file_log = "gamelog.txt";
-const std::string file_state = "state";
-const std::string file_action = "action";
+std::string file_state = "tmp/state";
+std::string file_action = "tmp/action";
 // Timeout is set to 10 when TA test your code.
-const int timeout = 1;
+const int timeout = 10;
 
 void launch_executable(std::string filename) {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
@@ -253,6 +253,12 @@ void launch_executable(std::string filename) {
 
 int main(int argc, char** argv) {
     assert(argc == 3);
+
+    srand(time(NULL));
+    int randomId = rand();
+    file_state += "_" + std::to_string(randomId);
+    file_action += "_" + std::to_string(randomId);
+
     std::ofstream log("gamelog.txt");
     std::string player_filename[3];
     player_filename[1] = argv[1];
