@@ -8,8 +8,7 @@ player*
 !player*.cpp
 !player*.cu
 
-gamelog.txt
-state
+tmp/*
 action
 
 *.log

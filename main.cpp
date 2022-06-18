@@ -228,7 +228,7 @@ public:
     }
 };
 
-const std::string file_log = "gamelog.txt";
+std::string file_log = "tmp/gamelog";
 std::string file_state = "tmp/state";
 std::string file_action = "tmp/action";
 // Timeout is set to 10 when TA test your code.
@@ -258,8 +258,9 @@ int main(int argc, char** argv) {
     int randomId = rand();
     file_state += "_" + std::to_string(randomId);
     file_action += "_" + std::to_string(randomId);
+    file_log += "_" + std::to_string(randomId);
 
-    std::ofstream log("gamelog.txt");
+    std::ofstream log(file_log);
     std::string player_filename[3];
     player_filename[1] = argv[1];
     player_filename[2] = argv[2];
@@ -307,5 +308,7 @@ int main(int argc, char** argv) {
     // Reset state file
     if (remove(file_state.c_str()) != 0)
         std::cerr << "Error removing file: " << file_state << "\n";
+
+    std::cout << "RandomId: " << randomId << "\n"; 
     return 0;
 }
