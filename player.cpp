@@ -51,8 +51,8 @@ struct Node {
     bool expanded;
 
     int cur_player;  // 1: O, 2: X
-    std::array<std::array<int, SIZE>, SIZE> board;
-    std::array<int8_t, 3> disc_count;
+    uint64_t board[2];
+    std::array<uint8_t, 3> disc_count;
     Node* parent;
     std::vector<Node*> children;
     std::vector<Point> next_spots;
@@ -65,11 +65,13 @@ struct Node {
         this->expanded = false;
 
         this->cur_player = player;
-        this->board = board;
+        this->board[0] = 0;
+        this->board[1] = 0;
         this->disc_count[0] = this->disc_count[1] = this->disc_count[2] = 0;
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
-                this->disc_count[this->board[i][j]]++;
+                this->disc_count[board[i][j]]++;
+                this->board[i >> 2] |= ((uint64_t)board[i][j] << ((((i & 3) << 3) + j) << 1));
             }
         }
         this->parent = nullptr;
@@ -82,7 +84,8 @@ struct Node {
         this->expanded = false;
 
         this->cur_player = node->cur_player;
-        this->board = node->board;
+        this->board[0] = node->board[0];
+        this->board[1] = node->board[1];
         this->disc_count[0] = node->disc_count[0];
         this->disc_count[1] = node->disc_count[1];
         this->disc_count[2] = node->disc_count[2];
@@ -145,15 +148,20 @@ int main(int argc, char** argv) {
         std::cout << "cur_player: " << node->cur_player << "\n";
         std::cout << "disc_count: " << (int)node->disc_count[0] << ", " << (int)node->disc_count[1] << ", " << (int)node->disc_count[2] << "\n";
         std::cout << node->partial_wins << "/" << node->partial_games << "\n";
+        // for (int i = 0; i < SIZE; i++) {
+        //     for (int j = 0; j < SIZE; j++) {
+        //         std::cout << i << ", " << j << ": " << ((((i & 3) << 3) + j) << 1) << " " << ((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) << "\n";
+        //     }
+        // }
         std::cout << "+---------------+\n";
         for (int i = 0; i < SIZE; i++) {
             std::cout << "|";
             for (int j = 0; j < SIZE; j++) {
                 if (j != 0)
                     std::cout << " ";
-                if (board[i][j] == 1) {
+                if (((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == 1) {
                     std::cout << "O";
-                } else if (board[i][j] == 2) {
+                } else if (((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == 2) {
                     std::cout << "X";
                 } else {
                     std::cout << " ";
@@ -163,8 +171,12 @@ int main(int argc, char** argv) {
         }
         std::cout << "+---------------+\n";
         std::cout << "child size: " << node->children.size() << "\n";
+        std::cout << "spot size: " << node->next_spots.size() << "\n";
         for (int i = 0; i < node->children.size(); i++) {
-            std::cout << i << ": " << node->children[i]->partial_wins << "/" << node->children[i]->partial_games << " = " << (double)node->children[i]->partial_wins / (node->children[i]->partial_games + DIV_DELTA) << "\n";
+            std::cout << i
+                    //   << " (" << node->next_spots[i].x << ", " << node->next_spots[i].y << "): "
+                      << ": "
+                      << node->children[i]->partial_wins << "/" << node->children[i]->partial_games << " = " << (double)node->children[i]->partial_wins / (node->children[i]->partial_games + DIV_DELTA) << "\n";
         }
         std::cin >> selection;
         if (selection >= node->children.size() || selection < 0)
@@ -182,17 +194,15 @@ int main(int argc, char** argv) {
 
 bool isTerminal(Node* node) {
     if (node->disc_count[0] != 0) {
-        int toCheck = node->disc_count[0];
-        for (int i = 0; i < SIZE && toCheck; i++) {
-            for (int j = 0; j < SIZE && toCheck; j++) {
-                if (node->board[i][j] == EMPTY) {
-                    toCheck--;
+        for (int i = 0; i < SIZE; i++) {
+            for (int j = 0; j < SIZE; j++) {
+                if (((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == EMPTY) {
                     for (auto dir : directions) {
                         Point p = Point(i, j) + dir;
                         if (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE) {
-                            int firstPly = node->board[p.x][p.y];
-                            while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && node->board[p.x][p.y] != EMPTY) {
-                                if (node->board[p.x][p.y] != firstPly)
+                            int firstPly = ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3);
+                            while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
+                                if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != firstPly)
                                     return false;
                                 p = p + dir;
                             }
@@ -252,17 +262,17 @@ void expansion(Node* node) {
     if (node->next_spots.empty())
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
-                if (node->board[i][j] == EMPTY) {
+                if (((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == EMPTY) {
                     bool point_availible = false;
                     for (auto dir : directions) {
                         // Move along the direction while testing.
                         Point p = Point(i, j) + dir;
                         if (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE) {
-                            if (node->board[p.x][p.y] != 3 - node->cur_player)
+                            if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != 3 - node->cur_player)
                                 continue;
                             p = p + dir;
-                            while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && node->board[p.x][p.y] != EMPTY) {
-                                if (node->board[p.x][p.y] == node->cur_player) {
+                            while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
+                                if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == node->cur_player) {
                                     point_availible = true;
                                     break;
                                 }
@@ -288,13 +298,13 @@ void expansion(Node* node) {
             for (auto dir : directions) {
                 Point p = node->next_spots[spotIdx] + dir;
 
-                while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && node->board[p.x][p.y] != EMPTY) {
-                    if (node->board[p.x][p.y] == node->cur_player) {
+                while (0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
+                    if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == node->cur_player) {
                         p = p - dir;
                         while (p != node->next_spots[spotIdx]) {
                             child_node->disc_count[child_node->cur_player]++;
                             child_node->disc_count[3 - child_node->cur_player]--;
-                            child_node->board[p.x][p.y] = child_node->cur_player;
+                            child_node->board[p.x >> 2] ^= (uint64_t)3 << ((((p.x & 3) << 3) + p.y) << 1);
                             p = p - dir;
                         }
                         break;
@@ -302,9 +312,11 @@ void expansion(Node* node) {
                     p = p + dir;
                 }
             }
-            child_node->disc_count[child_node->cur_player]++;
+            Point p = node->next_spots[spotIdx];
             child_node->disc_count[0]--;
-            child_node->board[node->next_spots[spotIdx].x][node->next_spots[spotIdx].y] = child_node->cur_player;
+            child_node->disc_count[child_node->cur_player]++;
+            child_node->board[p.x >> 2] &= ~((uint64_t)3 << ((((p.x & 3) << 3) + p.y) << 1));
+            child_node->board[p.x >> 2] |= ((uint64_t)child_node->cur_player << ((((p.x & 3) << 3) + p.y) << 1));
             child_node->cur_player = 3 - child_node->cur_player;
             child_node->parent = node;
             node->children.emplace_back(child_node);
@@ -317,9 +329,9 @@ int rollout(Node* node, int player) {
     Node* curnode = node;
     while (!isTerminal(curnode)) {
         expansion(curnode);
-        node->isLeaf = true;
         curnode = curnode->children[rand() % curnode->children.size()];
     }
+    node->isLeaf = true;
     return (curnode->disc_count[player] - curnode->disc_count[3 - player] > 0 ? 1 : 0);
 }
 
@@ -357,4 +369,5 @@ make; ./main ./players/player_109062131 ./players/baseline4
 make; ./main ./players/player_109062131 ./players/baseline5
 make; ./main ./player ./players/player_109062131
 make; ./main ./players/player_109062131 ./player
+make; ./main ./players/mcts_2sec_ver1 ./players/mcts_2sec_ver2
  */

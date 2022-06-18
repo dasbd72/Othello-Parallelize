@@ -16,4 +16,7 @@ Loop in limited time
 
 * Add an delta value to divisor in case divisor is zero
 * Count amount of disks on each move
-* 
+
+### Optimization (iterations / milliseconds, from initial board)
+* Original MCTS: 8306 / 2000
+* State Compress: 10146 / 2000
