@@ -20,3 +20,4 @@ Loop in limited time
 ### Optimization (iterations / milliseconds, from initial board)
 * Original MCTS: 8306 / 2000
 * State Compress: 10146 / 2000
+* Comparison Optimize((0 <= x < 8) -> (!(x & (~7)))): 10350 / 2000
