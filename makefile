@@ -1,15 +1,18 @@
-CXX			= g++
-CXXFLAGS	= --std=c++17 -O3
 SOURCES		= $(wildcard *.cpp)
 EXE			= $(SOURCES:%.cpp=%)
+SEQ			= main player
+CPU			= player_root_parallel player_leaf_parallel
 OTHER		= action state gamelog.txt
 
 .PHONY: all clean
 
-all: $(EXE)
+all: $(SEQ) $(CPU)
 
-$(EXE): % : %.cpp
-	$(CXX) -Wall -Wextra $(CXXFLAGS) -o $@ $<
+$(SEQ): % : %.cpp
+	g++ -Wall -Wextra --std=c++17 -O3 -o $@ $<
+
+$(CPU): % : %.cpp
+	g++ -Wall -Wextra  -pthread --std=c++17 -O3 -o $@ $<
 
 clean:
 	rm -f $(EXE) $(OTHER)

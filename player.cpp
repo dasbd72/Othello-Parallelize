@@ -49,11 +49,10 @@ struct Node {
     bool expanded;
 
     int cur_player;  // 1: O, 2: X
-    uint64_t board[2];
+    int64_t board[2];
     std::array<uint8_t, 3> disc_count;
     Node* parent;
-    std::vector<Node*> children;
-    std::vector<Point> next_spots;
+    std::vector<std::pair<Node*, Point>> children;
 
     Node(std::array<std::array<int, SIZE>, SIZE>& board, int player) {
         this->partial_wins = 0;
@@ -69,7 +68,7 @@ struct Node {
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
                 this->disc_count[board[i][j]]++;
-                this->board[i >> 2] |= ((uint64_t)board[i][j] << ((((i & 3) << 3) + j) << 1));
+                this->board[i >> 2] |= ((int64_t)board[i][j] << ((((i & 3) << 3) + j) << 1));
             }
         }
         this->parent = nullptr;
@@ -91,7 +90,7 @@ struct Node {
     }
     ~Node() {
         for (auto child : children) {
-            delete child;
+            delete child.first;
         }
     }
 };
@@ -129,11 +128,11 @@ int main(int argc, char** argv) {
 
     Point p;
     double max_val = -std::numeric_limits<double>::max();
-    for (int idx = 0; idx < root->children.size(); idx++) {
-        double val = (double)root->children[idx]->partial_wins / (root->children[idx]->partial_games + DIV_DELTA);
+    for (size_t idx = 0; idx < root->children.size(); idx++) {
+        double val = (double)root->children[idx].first->partial_wins / (root->children[idx].first->partial_games + DIV_DELTA);
         if (val > max_val) {
             max_val = val;
-            p = root->next_spots[idx];
+            p = root->children[idx].second;
         }
     }
     fout << p.x << " " << p.y << std::endl;
@@ -178,7 +177,7 @@ void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_po
         curnode = traversal(root);
         if (!isTerminal(curnode) && curnode->partial_games != 0) {
             expansion(curnode);
-            curnode = curnode->children[0];
+            curnode = curnode->children[0].first;
         }
         int win = rollout(curnode, root->cur_player);
         backPropagation(curnode, win);
@@ -193,10 +192,10 @@ Node* traversal(Node* root) {
         Node* tmpnode = nullptr;
         double max_UCT = 0;
         for (auto child : curnode->children) {
-            double tmp = ((double)child->partial_wins / (child->partial_games + DIV_DELTA)) + sqrt(2 * log(*child->total_games) / (child->partial_games + DIV_DELTA));
+            double tmp = ((double)child.first->partial_wins / (child.first->partial_games + DIV_DELTA)) + sqrt(2 * log(*child.first->total_games) / (child.first->partial_games + DIV_DELTA));
             if (tmp > max_UCT) {
                 max_UCT = tmp;
-                tmpnode = child;
+                tmpnode = child.first;
             }
         }
         curnode = tmpnode;
@@ -214,7 +213,7 @@ void expansion(Node* node) {
 
     node->isLeaf = false;
 
-    if (node->next_spots.empty())
+    if (node->children.empty())
         for (int i = 0; i < SIZE; i++) {
             for (int j = 0; j < SIZE; j++) {
                 if (((node->board[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == EMPTY) {
@@ -236,31 +235,31 @@ void expansion(Node* node) {
                         }
                     }
                     if (point_availible) {
-                        node->next_spots.emplace_back(i, j);
+                        node->children.emplace_back(nullptr, Point(i, j));
                     }
                 }
             }
         }
 
-    if (node->next_spots.size() == 0) {
+    if (node->children.size() == 0) {
         Node* child_node = new Node(node);
         child_node->cur_player = 3 - child_node->cur_player;
         child_node->parent = node;
-        node->children.emplace_back(child_node);
+        node->children.emplace_back(child_node, Point(-1, -1));
     } else {
-        for (int spotIdx = 0; spotIdx < node->next_spots.size(); spotIdx++) {
+        for (size_t spotIdx = 0; spotIdx < node->children.size(); spotIdx++) {
             Node* child_node = new Node(node);
             for (int d = 0; d < 8; d++) {
                 Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
-                Point p = node->next_spots[spotIdx] + dir;
+                Point p = node->children[spotIdx].second + dir;
 
                 while (!(p.x & (~7)) && !(p.y & (~7)) && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
                     if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == node->cur_player) {
                         p = p - dir;
-                        while (p != node->next_spots[spotIdx]) {
+                        while (p != node->children[spotIdx].second) {
                             child_node->disc_count[child_node->cur_player]++;
                             child_node->disc_count[3 - child_node->cur_player]--;
-                            child_node->board[p.x >> 2] ^= (uint64_t)3 << ((((p.x & 3) << 3) + p.y) << 1);
+                            child_node->board[p.x >> 2] ^= (int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1);
                             p = p - dir;
                         }
                         break;
@@ -268,14 +267,14 @@ void expansion(Node* node) {
                     p = p + dir;
                 }
             }
-            Point p = node->next_spots[spotIdx];
+            Point p = node->children[spotIdx].second;
             child_node->disc_count[0]--;
             child_node->disc_count[child_node->cur_player]++;
-            child_node->board[p.x >> 2] &= ~((uint64_t)3 << ((((p.x & 3) << 3) + p.y) << 1));
-            child_node->board[p.x >> 2] |= ((uint64_t)child_node->cur_player << ((((p.x & 3) << 3) + p.y) << 1));
+            child_node->board[p.x >> 2] &= ~((int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1));
+            child_node->board[p.x >> 2] |= ((int64_t)child_node->cur_player << ((((p.x & 3) << 3) + p.y) << 1));
             child_node->cur_player = 3 - child_node->cur_player;
             child_node->parent = node;
-            node->children.emplace_back(child_node);
+            node->children[spotIdx].first = child_node;
         }
     }
     node->expanded = true;
@@ -285,7 +284,7 @@ int rollout(Node* node, int player) {
     Node* curnode = node;
     while (!isTerminal(curnode)) {
         expansion(curnode);
-        curnode = curnode->children[rand() % curnode->children.size()];
+        curnode = curnode->children[rand() % curnode->children.size()].first;
     }
     node->isLeaf = true;
     return (curnode->disc_count[player] - curnode->disc_count[3 - player] > 0 ? 1 : 0);
@@ -302,28 +301,12 @@ void backPropagation(Node* node, int win) {
 
 /*
 g++ --std=c++17 -O3 -Wextra -Wall -fsanitize=address -g player.cpp -o player_dbg; ./player_dbg testcase/state0 action
-g++ --std=c++17 -O3 player.cpp -o player_2sec
-g++ --std=c++17 -O3 player.cpp -o player_9sec
 g++ --std=c++17 -O3 player.cpp -o player; ./player testcase/state0 action
-make; ./main ./player_9sec ./player_2sec
-make; ./main ./player ./players/player_random
-make; ./main ./player ./players/baseline1
-make; ./main ./player ./players/baseline2
-make; ./main ./player ./players/baseline3
-make; ./main ./player ./players/baseline4
-make; ./main ./player ./players/baseline5
-make; ./main ./players/player_random ./player
-make; ./main ./players/baseline1 ./player
-make; ./main ./players/baseline2 ./player
-make; ./main ./players/baseline3 ./player
-make; ./main ./players/baseline4 ./player
-make; ./main ./players/baseline5 ./player
-make; ./main ./players/player_109062131 ./players/baseline1
-make; ./main ./players/player_109062131 ./players/baseline2
-make; ./main ./players/player_109062131 ./players/baseline3
-make; ./main ./players/player_109062131 ./players/baseline4
-make; ./main ./players/player_109062131 ./players/baseline5
-make; ./main ./player ./players/player_109062131
-make; ./main ./players/player_109062131 ./player
-make; ./main ./players/mcts_2sec_ver1 ./players/mcts_2sec_ver2
+./main
+./main ./player ./players/player_random
+./main ./player ./players/baseline1
+./main ./player ./players/baseline2
+./main ./player ./players/baseline3
+./main ./player ./players/baseline4
+./main ./player ./players/baseline5
  */

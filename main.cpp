@@ -235,20 +235,8 @@ std::string file_action = "tmp/action";
 const int timeout = 10;
 
 void launch_executable(std::string filename) {
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-    std::string command = "start /min " + filename + " " + file_state + " " + file_action;
-    std::string kill = "timeout /t " + std::to_string(timeout) + " > NUL && taskkill /im " + filename + " > NUL 2>&1";
+    std::string command = "timeout " + std::to_string(timeout) + "s srun -c12 " + filename + " " + file_state + " " + file_action;
     system(command.c_str());
-    system(kill.c_str());
-#elif __linux__
-    std::string command = "timeout " + std::to_string(timeout) + "s " + filename + " " + file_state + " " + file_action;
-    system(command.c_str());
-#elif __APPLE__
-    // May require installing the command by:
-    // brew install coreutils
-    std::string command = "gtimeout " + std::to_string(timeout) + "s " + filename + " " + file_state + " " + file_action;
-    system(command.c_str());
-#endif
 }
 
 int main(int argc, char** argv) {
