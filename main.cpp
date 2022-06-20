@@ -234,13 +234,13 @@ std::string file_action = "tmp/action";
 // Timeout is set to 10 when TA test your code.
 const int timeout = 10;
 
-void launch_executable(std::string filename) {
-    std::string command = "timeout " + std::to_string(timeout) + "s srun -c12 " + filename + " " + file_state + " " + file_action;
+void launch_executable(std::string filename, std::string args) {
+    std::string command = "timeout " + std::to_string(timeout) + "s " + args + " " + filename + " " + file_state + " " + file_action;
     system(command.c_str());
 }
 
 int main(int argc, char** argv) {
-    assert(argc == 3);
+    assert(argc >= 3);
 
     srand(time(NULL));
     int randomId = rand();
@@ -266,7 +266,10 @@ int main(int argc, char** argv) {
         fout << data;
         fout.close();
         // Run external program
-        launch_executable(player_filename[game.cur_player]);
+        if(argc == 3)
+            launch_executable(player_filename[game.cur_player], "");
+        else 
+            launch_executable(player_filename[game.cur_player], "srun -c12");
         // Read action
         std::ifstream fin(file_action);
         Point p(-1, -1);
