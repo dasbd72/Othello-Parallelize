@@ -21,7 +21,13 @@ Loop in limited time
 * Original MCTS: 8306 / 2000
 * State Compress: 10146 / 2000
 * Comparison Optimize((0 <= x < 8) -> (!(x & (~7)))): 10350 / 2000
-### Root Parallelization
+* Independent Simulation in Rollout: 17600 / 2000
+* Same code using srun without parameter: 21832 / 2000
+* srun -c8: 25248 / 2000
+
+### Direct Parallelization
+* No speedup
+### Leaf Parallelization
 
 ## Compile Commands
 ### `player.cpp`
@@ -42,4 +48,4 @@ make; ./main ./player ./players/baseline5
 
 g++ --std=c++17 -O3 -fopenmp -pthread -Wextra -Wall -fsanitize=address -g player_parallel.cpp -o player_dbg; srun -c12 ./player_dbg testcase/state0 action
 g++ --std=c++17 -O3 -fopenmp -pthread player_parallel.cpp -o player_parallel
-make; srun -c12 ./player_parallel testcase/state0 action
+make; srun -c8 ./player_parallel testcase/state0 action
