@@ -46,9 +46,9 @@ struct Node {
     int partial_games;
     int* total_games;
 
-    int cur_player;  // 1: O, 2: X
+    int player;  // 1: O, 2: X
     int64_t board[2];
-    std::array<uint8_t, 3> disc_count;
+    int disc_count[3];
     Node* parent;
     std::vector<std::pair<Node*, Point>> children;
 
@@ -57,7 +57,7 @@ struct Node {
         this->partial_games = 0;
         this->total_games = &(this->partial_games);
 
-        this->cur_player = player;
+        this->player = player;
         this->board[0] = 0;
         this->board[1] = 0;
         this->disc_count[0] = this->disc_count[1] = this->disc_count[2] = 0;
@@ -74,7 +74,7 @@ struct Node {
         this->partial_games = 0;
         this->total_games = node->total_games;
 
-        this->cur_player = node->cur_player;
+        this->player = node->player;
         this->board[0] = node->board[0];
         this->board[1] = node->board[1];
         this->disc_count[0] = node->disc_count[0];
@@ -95,7 +95,7 @@ bool isTerminal(Node* node);
 void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_point start_time);
 void traversal(Node* root, Node*& target);
 void expansion(Node* node);
-void rollout(Node* node, int player, int& win);
+void rollout(Node* node, int& win);
 void backPropagation(Node* node, int win);
 
 int main(int argc, char** argv) {
@@ -114,15 +114,23 @@ int main(int argc, char** argv) {
     }
     // === Write move ===
 
-    Node* root = new Node(board, player);
+    Node* root = new Node(board, 3 - player);
     auto start_time = std::chrono::high_resolution_clock::now();
+    if (!isTerminal(root))
+        expansion(root);
     monte_carlo_tree_search(root, start_time);
     auto end_time = std::chrono::high_resolution_clock::now();
     int duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     printf("duration of mcts: %d milliseconds\n", duration);
+    for (size_t i = 0; i < root->children.size(); i++) {
+        if (root->children[i].first)
+            std::cout << i
+                      << " (" << root->children[i].second.x << ", " << root->children[i].second.y << "): "
+                      << root->children[i].first->partial_wins << "/" << root->children[i].first->partial_games << " = " << (double)root->children[i].first->partial_wins / (root->children[i].first->partial_games + DIV_DELTA) << "\n";
+    }
 
-    Point p;
-    double max_val = -std::numeric_limits<double>::max();
+    Point p = root->children[0].second;
+    double max_val = -std::numeric_limits<double>::infinity();
     for (size_t idx = 0; idx < root->children.size(); idx++) {
         double val = (double)root->children[idx].first->partial_wins / (root->children[idx].first->partial_games + DIV_DELTA);
         if (val > max_val) {
@@ -216,18 +224,17 @@ void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_po
             curnode = curnode->children[0].first;
         }
         int win = 0;
-        rollout(curnode, root->cur_player, win);
+        rollout(curnode, win);
         backPropagation(curnode, win);
     }
     std::cout << "iterations: " << iteration << "\n";
-    std::cout << root->partial_wins << "/" << root->partial_games << " = " << (double)root->partial_wins / (root->partial_games + DIV_DELTA) << "\n";
 }
 
 void traversal(Node* root, Node*& target) {
     target = root;
     while (!target->children.empty()) {
-        Node* tmpnode = nullptr;
-        double max_UCT = -1e306;
+        Node* tmpnode = target->children[0].first;
+        double max_UCT = -std::numeric_limits<double>::infinity();
         for (auto child : target->children) {
             double tmp = ((double)child.first->partial_wins / (child.first->partial_games + DIV_DELTA)) + sqrt(2 * log(*child.first->total_games) / (child.first->partial_games + DIV_DELTA));
             if (tmp > max_UCT) {
@@ -252,11 +259,11 @@ void expansion(Node* node) {
                         Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
                         Point p = Point(i, j) + dir;
                         if (!(p.x & (~7)) && !(p.y & (~7))) {
-                            if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != 3 - node->cur_player)
+                            if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != node->player)
                                 continue;
                             p = p + dir;
                             while (!(p.x & (~7)) && !(p.y & (~7)) && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
-                                if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == node->cur_player) {
+                                if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == 3 - node->player) {
                                     point_availible = true;
                                     break;
                                 }
@@ -273,7 +280,7 @@ void expansion(Node* node) {
 
     if (node->children.empty()) {
         Node* child_node = new Node(node);
-        child_node->cur_player = 3 - child_node->cur_player;
+        child_node->player = 3 - child_node->player;
         child_node->parent = node;
         node->children.emplace_back(child_node, Point(-1, -1));
     } else {
@@ -285,11 +292,11 @@ void expansion(Node* node) {
                     Point p = node->children[idx].second + dir;
 
                     while (!(p.x & (~7)) && !(p.y & (~7)) && ((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
-                        if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == node->cur_player) {
+                        if (((node->board[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == 3 - node->player) {
                             p = p - dir;
                             while (p != node->children[idx].second) {
-                                child_node->disc_count[child_node->cur_player]++;
-                                child_node->disc_count[3 - child_node->cur_player]--;
+                                child_node->disc_count[3 - child_node->player]++;
+                                child_node->disc_count[child_node->player]--;
                                 child_node->board[p.x >> 2] ^= (int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1);
                                 p = p - dir;
                             }
@@ -300,10 +307,10 @@ void expansion(Node* node) {
                 }
                 Point p = node->children[idx].second;
                 child_node->disc_count[0]--;
-                child_node->disc_count[child_node->cur_player]++;
+                child_node->disc_count[3 - child_node->player]++;
                 child_node->board[p.x >> 2] &= ~((int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1));
-                child_node->board[p.x >> 2] |= ((int64_t)child_node->cur_player << ((((p.x & 3) << 3) + p.y) << 1));
-                child_node->cur_player = 3 - child_node->cur_player;
+                child_node->board[p.x >> 2] |= ((int64_t)(3 - child_node->player) << ((((p.x & 3) << 3) + p.y) << 1));
+                child_node->player = 3 - child_node->player;
                 child_node->parent = node;
                 node->children[idx].first = child_node;
             }
@@ -311,8 +318,8 @@ void expansion(Node* node) {
     }
 }
 
-void rollout(Node* node, int player, int& win) {
-    int curplayer = node->cur_player;
+void rollout(Node* node, int& win) {
+    int player = node->player;
     int64_t curboard[2];
     curboard[0] = node->board[0];
     curboard[1] = node->board[1];
@@ -330,11 +337,11 @@ void rollout(Node* node, int player, int& win) {
                         Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
                         Point p = Point(i, j) + dir;
                         if (!(p.x & (~7)) && !(p.y & (~7))) {
-                            if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != 3 - curplayer)
+                            if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != player)
                                 continue;
                             p = p + dir;
                             while (!(p.x & (~7)) && !(p.y & (~7)) && ((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
-                                if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == curplayer) {
+                                if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == 3 - player) {
                                     point_availible = true;
                                     break;
                                 }
@@ -356,11 +363,11 @@ void rollout(Node* node, int player, int& win) {
                 Point p = next_spots[idx] + dir;
 
                 while (!(p.x & (~7)) && !(p.y & (~7)) && ((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) != EMPTY) {
-                    if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == curplayer) {
+                    if (((curboard[p.x >> 2] >> ((((p.x & 3) << 3) + p.y) << 1)) & 3) == 3 - player) {
                         p = p - dir;
                         while (p != next_spots[idx]) {
-                            disc_count[curplayer]++;
-                            disc_count[3 - curplayer]--;
+                            disc_count[3 - player]++;
+                            disc_count[player]--;
                             curboard[p.x >> 2] ^= (int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1);
                             p = p - dir;
                         }
@@ -371,13 +378,18 @@ void rollout(Node* node, int player, int& win) {
             }
             Point p = next_spots[idx];
             disc_count[0]--;
-            disc_count[curplayer]++;
+            disc_count[3 - player]++;
             curboard[p.x >> 2] &= ~((int64_t)3 << ((((p.x & 3) << 3) + p.y) << 1));
-            curboard[p.x >> 2] |= ((int64_t)curplayer << ((((p.x & 3) << 3) + p.y) << 1));
+            curboard[p.x >> 2] |= ((int64_t)(3 - player) << ((((p.x & 3) << 3) + p.y) << 1));
         }
-        curplayer = 3 - curplayer;
+        player = 3 - player;
     }
-    win += (disc_count[player] - disc_count[3 - player] > 0 ? 1 : 0);
+    int val = disc_count[node->player] - disc_count[3 - node->player];
+    if (val > 0) {
+        win += 1;
+    } else if (val < 0) {
+        win -= 1;
+    }
 }
 
 void backPropagation(Node* node, int win) {
@@ -386,5 +398,6 @@ void backPropagation(Node* node, int win) {
         curnode->partial_wins += win;
         curnode->partial_games++;
         curnode = curnode->parent;
+        win = -win;
     }
 }
