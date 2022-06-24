@@ -232,10 +232,11 @@ std::string file_log = "tmp/gamelog";
 std::string file_state = "tmp/state";
 std::string file_action = "tmp/action";
 // Timeout is set to 10 when TA test your code.
-const int timeout = 10;
+const int timeout = 1000;
 
 void launch_executable(std::string filename, std::string args) {
     std::string command = "timeout " + std::to_string(timeout) + "s " + args + " " + filename + " " + file_state + " " + file_action;
+    std::cout << "> " << command << "\n"; 
     system(command.c_str());
 }
 
@@ -269,7 +270,7 @@ int main(int argc, char** argv) {
         if(argc == 3)
             launch_executable(player_filename[game.cur_player], "");
         else 
-            launch_executable(player_filename[game.cur_player], "srun -c12");
+            launch_executable(player_filename[game.cur_player], std::string("srun -c") + std::string(argv[3]));
         // Read action
         std::ifstream fin(file_action);
         Point p(-1, -1);
