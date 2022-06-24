@@ -101,12 +101,11 @@ bool isTerminal(Node* node);
 void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_point start_time);
 void traversal(Node* root, Node*& target);
 void expansion(Node* node);
-void rollout(Node* node, int& win);
+void rollout(unsigned int& seed, Node* node, int& win);
 void backPropagation(Node* node, int win);
 
 int main(int argc, char** argv) {
     assert(argc == 3);
-    srand(time(NULL));
     std::ifstream fin(argv[1]);
     std::ofstream fout(argv[2]);
     int player;
@@ -221,24 +220,23 @@ bool isTerminal(Node* node) {
 
 void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_point start_time) {
     int iteration = 0;
+    unsigned int seed[num_threads];
+    Node* curnode = nullptr;
+    int win = 0;
+    for (int t = 0; t < num_threads; t++) {
+        seed[t] = t;
+    }
     while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() < MAX_DURATION) {
         iteration++;
-        Node* curnode;
         traversal(root, curnode);
         if (!isTerminal(curnode) && curnode->partial_games != 0) {
             expansion(curnode);
             curnode = curnode->children[0].first;
         }
-        int win = 0;
-        // for (int t = 0; t < num_threads - 1; t++)
-        //     threads[t] = std::thread(rollout, curnode, std::ref(win));
-        // rollout(curnode, win);
-        // for (int t = 0; t < num_threads - 1; t++)
-        //     threads[t].join();
-
+        win = 0;
 #pragma omp parallel for schedule(static) num_threads(num_threads)
         for (int t = 0; t < num_threads; t++) {
-            rollout(curnode, win);
+            rollout(seed[t], curnode, win);
         }
         backPropagation(curnode, win);
     }
@@ -333,7 +331,7 @@ void expansion(Node* node) {
     }
 }
 
-void rollout(Node* node, int& win) {
+void rollout(unsigned int& seed, Node* node, int& win) {
     int player = node->player;
     int64_t curboard[2];
     curboard[0] = node->board[0];
@@ -371,7 +369,7 @@ void rollout(Node* node, int& win) {
             }
         }
         if (!next_spots.empty()) {
-            size_t idx = rand() % next_spots.size();
+            size_t idx = rand_r(&seed) % next_spots.size();
 
             for (int d = 0; d < 8; d++) {
                 Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
@@ -400,15 +398,6 @@ void rollout(Node* node, int& win) {
         player = 3 - player;
     }
     int val = disc_count[node->player] - disc_count[3 - node->player];
-    /* if (val > 0) {
-        lock.lock();
-        win += 1;
-        lock.unlock();
-    } else if (val < 0) {
-        lock.lock();
-        win -= 1;
-        lock.unlock();
-    } */
     if (val > 0) {
 #pragma omp critical
         win += 1;
