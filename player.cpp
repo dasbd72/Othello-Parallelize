@@ -95,12 +95,11 @@ bool isTerminal(Node* node);
 void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_point start_time);
 void traversal(Node* root, Node*& target);
 void expansion(Node* node);
-void rollout(Node* node, int& win);
+void rollout(unsigned int& seed, Node* node, int& win);
 void backPropagation(Node* node, int win);
 
 int main(int argc, char** argv) {
     assert(argc == 3);
-    srand(time(NULL));
     std::ifstream fin(argv[1]);
     std::ofstream fout(argv[2]);
     int player;
@@ -215,16 +214,18 @@ bool isTerminal(Node* node) {
 
 void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_point start_time) {
     int iteration = 0;
+    unsigned int seed = 0;
+    Node* curnode = nullptr;
+    int win = 0;
     while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() < MAX_DURATION) {
         iteration++;
-        Node* curnode;
         traversal(root, curnode);
         if (!isTerminal(curnode) && curnode->partial_games != 0) {
             expansion(curnode);
             curnode = curnode->children[0].first;
         }
-        int win = 0;
-        rollout(curnode, win);
+        win = 0;
+        rollout(seed, curnode, win);
         backPropagation(curnode, win);
     }
     std::cout << "iterations: " << iteration << "\n";
@@ -318,7 +319,7 @@ void expansion(Node* node) {
     }
 }
 
-void rollout(Node* node, int& win) {
+void rollout(unsigned int& seed, Node* node, int& win) {
     int player = node->player;
     int64_t curboard[2];
     curboard[0] = node->board[0];
@@ -356,7 +357,7 @@ void rollout(Node* node, int& win) {
             }
         }
         if (!next_spots.empty()) {
-            size_t idx = rand() % next_spots.size();
+            size_t idx = rand_r(&seed) % next_spots.size();
 
             for (int d = 0; d < 8; d++) {
                 Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
