@@ -334,7 +334,7 @@ void rollout(unsigned int& seed, Node* node, int& win) {
             for (int j = 0; j < SIZE; j++) {
                 if (((curboard[i >> 2] >> ((((i & 3) << 3) + j) << 1)) & 3) == EMPTY) {
                     bool point_availible = false;
-                    for (int d = 0; d < 8; d++) {
+                    for (int d = 0; d < 8 && !point_availible; d++) {
                         Point dir = Point(directions[d << 1], directions[(d << 1) + 1]);
                         Point p = Point(i, j) + dir;
                         if (!(p.x & (~7)) && !(p.y & (~7))) {
