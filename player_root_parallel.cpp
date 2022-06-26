@@ -95,6 +95,7 @@ struct Node {
     }
 };
 
+int count_nodes(Node* node);
 bool isTerminal(int64_t board[2]);
 bool isTerminal(Node* node);
 
@@ -133,15 +134,12 @@ int main(int argc, char** argv) {
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     int duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    printf("duration of mcts: %d milliseconds\n", duration);
-    // for (int t = 1; t < num_threads; t++) {
-    //     for (size_t i = 0; i < root[0]->children.size(); i++) {
-    //         if (root[t]->children[i].first)
-    //             std::cout << i
-    //                       << " (" << root[t]->children[i].second.x << ", " << root[t]->children[i].second.y << "): "
-    //                       << root[t]->children[i].first->partial_wins << "/" << root[t]->children[i].first->partial_games << " = " << (double)root[t]->children[i].first->partial_wins / (root[t]->children[i].first->partial_games + DIV_DELTA) << "\n";
-    //     }
-    // }
+    std::cout << "duration of mcts: " << duration << " milliseconds\n";
+    for (int t = 0; t < num_threads; t++) {
+        std::cout << t << ": \n";
+        std::cout << "total nodes: " << count_nodes(root[t]) << "\n";
+        std::cout << "total simulations: " << root[t]->partial_games << "\n";
+    }
     for (int t = 1; t < num_threads; t++) {
         for (size_t i = 0; i < root[t]->children.size(); i++) {
             root[0]->children[i].first->partial_wins += root[t]->children[i].first->partial_wins;
@@ -214,6 +212,15 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+int count_nodes(Node* node) {
+    if (node == nullptr)
+        return 0;
+    int val = 0;
+    for (auto child : node->children)
+        val += count_nodes(child.first) + 1;
+    return val;
+}
+
 bool isTerminal(int64_t board[2]) {
     for (int i = 0; i < SIZE; i++) {
         for (int j = 0; j < SIZE; j++) {
@@ -258,7 +265,7 @@ void monte_carlo_tree_search(int tid, Node* root, std::chrono::_V2::system_clock
         rollout(seed, curnode, win);
         backPropagation(curnode, win);
     }
-    std::cout << "iterations: " << iteration << "\n";
+    std::cout << std::to_string(tid) + std::string(" iterations: ") + std::to_string(iteration) + std::string("\n");
 }
 
 void traversal(Node* root, Node*& target) {

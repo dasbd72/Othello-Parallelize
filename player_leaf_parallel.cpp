@@ -95,6 +95,7 @@ struct Node {
     }
 };
 
+int count_nodes(Node* node);
 bool isTerminal(int64_t board[2]);
 bool isTerminal(Node* node);
 
@@ -126,7 +127,9 @@ int main(int argc, char** argv) {
     monte_carlo_tree_search(root, start_time);
     auto end_time = std::chrono::high_resolution_clock::now();
     int duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    printf("duration of mcts: %d milliseconds\n", duration);
+    std::cout << "duration of mcts: " << duration << " milliseconds\n";
+    std::cout << "total nodes: " << count_nodes(root) << "\n";
+    std::cout << "total simulations: " << root->partial_games << "\n";
     for (size_t i = 0; i < root->children.size(); i++) {
         if (root->children[i].first)
             std::cout << i
@@ -190,6 +193,15 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+int count_nodes(Node* node) {
+    if (node == nullptr)
+        return 0;
+    int val = 0;
+    for (auto child : node->children)
+        val += count_nodes(child.first) + 1;
+    return val;
+}
+
 bool isTerminal(int64_t board[2]) {
     for (int i = 0; i < SIZE; i++) {
         for (int j = 0; j < SIZE; j++) {
@@ -240,7 +252,7 @@ void monte_carlo_tree_search(Node* root, std::chrono::_V2::system_clock::time_po
         }
         backPropagation(curnode, win);
     }
-    std::cout << "iterations: " << iteration << "\n";
+    std::cout << std::string("iterations: ") + std::to_string(iteration) + std::string("\n");
 }
 
 void traversal(Node* root, Node*& target) {
