@@ -1,7 +1,7 @@
 SOURCES		= $(wildcard *.cpp)
 EXE			= $(SOURCES:%.cpp=%)
 SEQ			= main player
-CPU			= player_parallel player_root_parallel player_leaf_parallel
+CPU			= player_parallel player_tree_parallel player_root_parallel player_leaf_parallel player_expansion_parallel
 OTHER		= action state gamelog.txt
 
 .PHONY: all clean
