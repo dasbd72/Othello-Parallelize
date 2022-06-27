@@ -53,6 +53,7 @@ struct Node {
     int partial_wins;
     int partial_games;
     int* total_games;
+    int virtual_loss;
 
     int player;  // 1: O, 2: X
     int64_t board[2];
@@ -66,6 +67,7 @@ struct Node {
         this->partial_wins = 0;
         this->partial_games = 0;
         this->total_games = &(this->partial_games);
+        this->virtual_loss = 0;
 
         this->player = player;
         this->board[0] = 0;
@@ -83,6 +85,7 @@ struct Node {
         this->partial_wins = 0;
         this->partial_games = 0;
         this->total_games = node->total_games;
+        this->virtual_loss = 0;
 
         this->player = node->player;
         this->board[0] = node->board[0];
@@ -270,28 +273,24 @@ void monte_carlo_tree_search(unsigned int tid, Node* root, std::chrono::_V2::sys
 }
 
 void traversal(int tid, Node* root, Node*& target) {
-    size_t sequence = tid;
     target = root;
     while (!target->children.empty()) {
         target->lock_children.lock();
         Node* tmpnode = target->children[0].first;
         double max_UCT = -std::numeric_limits<double>::infinity();
         for (auto child : target->children) {
-            double tmp = ((double)child.first->partial_wins / (child.first->partial_games + DIV_DELTA)) + sqrt(2 * log(*child.first->total_games) / (child.first->partial_games + DIV_DELTA));
+            child.first->lock_data.lock();
+            double tmp = ((double)child.first->partial_wins / (child.first->partial_games + DIV_DELTA)) + sqrt(2 * log(*child.first->total_games) / (child.first->partial_games + DIV_DELTA)) - (double)(child.first->virtual_loss) / num_threads;
+            child.first->lock_data.unlock();
             if (tmp > max_UCT) {
-                // max_UCT = tmp;
-                // tmpnode = child.first;
-                if (sequence <= 0 || child.first->children.size() > sequence) {
-                    max_UCT = tmp;
-                    tmpnode = child.first;
-                } else if (child.first->children.size() <= sequence) {
-                    sequence -= child.first->children.size();
-                } else {
-                    sequence--;
-                }
+                max_UCT = tmp;
+                tmpnode = child.first;
             }
         }
         target->lock_children.unlock();
+        target->lock_data.lock();
+        target->virtual_loss++;
+        target->lock_data.unlock();
         target = tmpnode;
     }
 }
@@ -448,6 +447,7 @@ void backPropagation(Node* node, int win) {
         curnode->lock_data.lock();
         curnode->partial_wins += win;
         curnode->partial_games++;
+        curnode->virtual_loss--;
         curnode->lock_data.unlock();
         curnode = curnode->parent;
         win = -win;
