@@ -1,6 +1,7 @@
 testcase/
 
 main
+testbench
 109062131_project3
 player*
 !players/*

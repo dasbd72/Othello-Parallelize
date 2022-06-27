@@ -41,12 +41,13 @@ enum SPOT_STATE {
 };
 const int SIZE = 8;
 const int MAXITER = 10000;
-const int MAX_DURATION = 2000;
+int MAX_DURATION = 2000;
 const double DIV_DELTA = 1e-9;
 const int directions[16] = {-1, -1, -1, 0, -1, 1, 0, -1, 0, 1, 1, -1, 1, 0, 1, 1};
 int num_threads = omp_get_max_threads();
 std::vector<std::thread> threads(num_threads);
 std::mutex lock;
+int DEBUG = 0;
 
 struct Node {
     int partial_wins;
@@ -109,11 +110,15 @@ void rollout(unsigned int& seed, Node* node, int& win);
 void backPropagation(Node* node, int win);
 
 int main(int argc, char** argv) {
-    assert(argc == 3);
+    assert(argc >= 3);
     std::ifstream fin(argv[1]);
     std::ofstream fout(argv[2]);
     int player;
     std::array<std::array<int, SIZE>, SIZE> board;
+    if (argc > 3)
+        MAX_DURATION = atoi(argv[3]);
+    if (argc > 4)
+        DEBUG = atoi(argv[4]);
     // === Read state ===
     fin >> player;
     for (int i = 0; i < SIZE; i++) {
@@ -137,14 +142,16 @@ int main(int argc, char** argv) {
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     int duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::cout << "duration of mcts: " << duration << " milliseconds\n";
-    std::cout << "total nodes: " << count_nodes(root) << "\n";
-    std::cout << "total simulations: " << root->partial_games << "\n";
-    for (size_t i = 0; i < root->children.size(); i++) {
-        if (root->children[i].first)
-            std::cout << i
-                      << " (" << root->children[i].second.x << ", " << root->children[i].second.y << "): "
-                      << root->children[i].first->partial_wins << "/" << root->children[i].first->partial_games << " = " << (double)root->children[i].first->partial_wins / (root->children[i].first->partial_games + DIV_DELTA) << "\n";
+    if (DEBUG >= 1) {
+        std::cout << "duration of mcts: " << duration << " milliseconds\n";
+        std::cout << "total nodes: " << count_nodes(root) << "\n";
+        std::cout << "total simulations: " << root->partial_games << "\n";
+        for (size_t i = 0; i < root->children.size(); i++) {
+            if (root->children[i].first)
+                std::cout << i
+                          << " (" << root->children[i].second.x << ", " << root->children[i].second.y << "): "
+                          << root->children[i].first->partial_wins << "/" << root->children[i].first->partial_games << " = " << (double)root->children[i].first->partial_wins / (root->children[i].first->partial_games + DIV_DELTA) << "\n";
+        }
     }
 
     Point p = root->children[0].second;
@@ -258,7 +265,8 @@ void monte_carlo_tree_search(unsigned int tid, Node* root, std::chrono::_V2::sys
         rollout(seed, curnode, win);
         backPropagation(curnode, win);
     }
-    std::cout << std::to_string(tid) + std::string(" iterations: ") + std::to_string(iteration) + std::string("\n");
+    if (DEBUG >= 1)
+        std::cout << std::to_string(tid) + std::string(" iterations: ") + std::to_string(iteration) + std::string("\n");
 }
 
 void traversal(int tid, Node* root, Node*& target) {
